@@ -38,30 +38,24 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.util import Throttle
 import homeassistant.util.dt as dt_util
 
+from .pulse import get_pa_server
+
 _LOGGER = logging.getLogger(__name__)
 
+CONF_BUFFER_SIZE = "buffer_size"
+CONF_SINK_NAME = "sink_name"
+CONF_SOURCE_NAME = "source_name"
+CONF_TCP_TIMEOUT = "tcp_timeout"
 CONF_SINK_NAME = "sink_name"
 CONF_SOURCES = "sources"
-CONF_SOURCE_NAME = "source_name"
 
-DEFAULT_NAME = "PULSE"
-DEFAULT_PORT = 6600
+DEFAULT_BUFFER_SIZE = 1024
+DEFAULT_HOST = "localhost"
+DEFAULT_NAME = "pulseaudio"
+DEFAULT_PORT = 4712
+DEFAULT_TCP_TIMEOUT = 3
 
 PLAYLIST_UPDATE_INTERVAL = timedelta(seconds=120)
-
-SUPPORT_Pulse = (
-    SUPPORT_PAUSE
-    | SUPPORT_PREVIOUS_TRACK
-    | SUPPORT_NEXT_TRACK
-    | SUPPORT_PLAY_MEDIA
-    | SUPPORT_PLAY
-    | SUPPORT_CLEAR_PLAYLIST
-    | SUPPORT_SHUFFLE_SET
-    | SUPPORT_SEEK
-    | SUPPORT_STOP
-    | SUPPORT_TURN_OFF
-    | SUPPORT_TURN_ON
-)
 
 SOURCES_SCHEMA = vol.Schema(
     {
@@ -73,8 +67,11 @@ SOURCES_SCHEMA = vol.Schema(
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_HOST): cv.string,
+        vol.Optional(CONF_BUFFER_SIZE, default=DEFAULT_BUFFER_SIZE): cv.positive_int,
+        vol.Optional(CONF_HOST, default=DEFAULT_HOST): cv.string,
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
         vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
+        vol.Optional(CONF_TCP_TIMEOUT, default=DEFAULT_TCP_TIMEOUT): cv.positive_int,
         vol.Required(CONF_SINK_NAME): cv.string,
         vol.Required(CONF_SOURCES): [SOURCES_SCHEMA],
     }
@@ -83,13 +80,17 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the Pulse platform."""
-    host = config.get(CONF_HOST)
-    port = config.get(CONF_PORT)
     name = config.get(CONF_NAME)
     sources = config.get(CONF_SOURCES)
     sink_name = config.get(CONF_SINK_NAME)
+    host = config.get(CONF_HOST)
+    port = config.get(CONF_PORT)
+    buffer_size = config.get(CONF_BUFFER_SIZE)
+    tcp_timeout = config.get(CONF_TCP_TIMEOUT)
 
-    device = PulseDevice(host, port, name, sink_name, sources)
+    server = get_pa_server(host, port, buffer_size, tcp_timeout)
+
+    device = PulseDevice(server, name, sink_name, sources)
     add_entities([device], True)
 
 
@@ -97,17 +98,16 @@ class PulseDevice(MediaPlayerDevice):
     """Representation of a Pulse server."""
 
     # pylint: disable=no-member
-    def __init__(self, server, port, name, sink_name, sources):
+    def __init__(self, pa_server, name, sink_name, sources):
         """Initialize the Pulse device."""
-        self.server = server
-        self.port = port
+        self._pa_svr = pa_server
         self._name = name
-        self.sink_name = sink_name
+        self._sink_name = sink_name
         self._sources = sources
         self._source_names = [s["name"] for s in self._sources]
-
         self._status = None
         self._is_connected = True
+        self._current_source = None
 
     @property
     def available(self):
@@ -115,8 +115,18 @@ class PulseDevice(MediaPlayerDevice):
         return self._is_connected
 
     def update(self):
-        """Get the latest data and update the state."""
-        None
+        """Refresh state in case an alternate process modified this data."""
+        self._pa_svr.update_module_state()
+
+        current_source = None
+        for s in self._sources:
+            idx = self._pa_svr.get_module_idx(self._sink_name, s["source_name"])
+
+            if idx != -1:
+                current_source = s["name"]
+                break
+
+        self._current_source = current_source
 
     @property
     def name(self):
@@ -149,6 +159,11 @@ class PulseDevice(MediaPlayerDevice):
             | SUPPORT_VOLUME_MUTE
             | SUPPORT_SELECT_SOURCE
         )
+
+    @property
+    def source(self):
+        """Name of the current input source."""
+        return self._current_source
 
     @property
     def source_list(self):
