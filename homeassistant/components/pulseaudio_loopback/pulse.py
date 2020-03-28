@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 import re
 import socket
+import select
 import logging
 from homeassistant import util
 
@@ -64,12 +65,17 @@ class PAServer:
     def _get_full_response(self, sock):
         """Get the full response back from pulseaudio."""
         result = ""
-        rcv_buffer = sock.recv(self._buffer_size)
-        result += rcv_buffer.decode("utf-8")
 
-        while len(rcv_buffer) == self._buffer_size:
-            rcv_buffer = sock.recv(self._buffer_size)
-            result += rcv_buffer.decode("utf-8")
+        t1 = datetime.now()
+        sock.setblocking(0)
+
+        while (datetime.now() - t1).seconds < self._tcp_timeout:
+            ready = select.select([sock], [], [], 0.2)
+            if ready[0]:
+                rcv_buffer = sock.recv(self._buffer_size)
+                result += rcv_buffer.decode("utf-8")
+            else:
+                break
 
         return result
 
