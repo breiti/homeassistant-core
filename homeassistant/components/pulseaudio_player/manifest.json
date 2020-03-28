@@ -1,0 +1,8 @@
+{
+  "domain": "pulseaudio_player",
+  "name": "PulseAudio Player",
+  "documentation": "https://www.home-assistant.io/integrations/pulseaudio_player",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": []
+}
