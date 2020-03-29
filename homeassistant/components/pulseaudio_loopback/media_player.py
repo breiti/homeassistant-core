@@ -149,6 +149,11 @@ class PulseDevice(MediaPlayerDevice):
         )
 
     @property
+    def media_title(self):
+        """Return the content ID of current playing media."""
+        return self._current_source
+
+    @property
     def source(self):
         """Name of the current input source."""
         return self._current_source
