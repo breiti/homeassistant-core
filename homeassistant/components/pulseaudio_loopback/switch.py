@@ -55,6 +55,8 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 class PALoopbackSwitch(SwitchDevice):
     """Representation the presence or absence of a PA loopback module."""
 
+    _state_updated = False
+
     def __init__(self, hass, name, pa_server, sink_name, source_name):
         """Initialize the Pulseaudio switch."""
         self._module_idx = -1
@@ -68,6 +70,11 @@ class PALoopbackSwitch(SwitchDevice):
     def name(self):
         """Return the name of the switch."""
         return self._name
+
+    @property
+    def available(self):
+        """Return true if Pulse is available and connected."""
+        return self._state_updated
 
     @property
     def is_on(self):
@@ -101,6 +108,11 @@ class PALoopbackSwitch(SwitchDevice):
     def update(self):
         """Refresh state in case an alternate process modified this data."""
         self._pa_svr.update_module_state()
+
+        if not self._pa_svr.state_valid:
+            return
+
         self._module_idx = self._pa_svr.get_module_idx(
             self._sink_name, self._source_name
         )
+        self._state_updated = True
