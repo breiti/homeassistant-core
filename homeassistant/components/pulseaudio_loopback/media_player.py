@@ -221,8 +221,14 @@ class PulseDevice(MediaPlayerDevice):
         self._state = state
 
     def connect_source(self, source):
-        src = next(filter(lambda s: s["name"] == source, self._sources))["source_name"]
+        for s in self._sources:
+            if s["name"] == source:
+                self._pa_svr.turn_on(self._sink_name, s["source_name"])
+            else:
+                idx = self._pa_svr.get_module_idx(self._sink_name, s["source_name"])
 
-        self._pa_svr.turn_on(self._sink_name, src)
-        # TODO: Turn off other sources!
-        self.update()
+                if idx == -1:
+                    continue
+
+                self._pa_svr.turn_off(idx)
+        self.schedule_update_ha_state()
