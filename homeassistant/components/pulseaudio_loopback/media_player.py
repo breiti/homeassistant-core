@@ -108,25 +108,12 @@ class PulseDevice(MediaPlayerDevice):
         self._status = None
         self._is_connected = True
         self._current_source = None
+        self._state = STATE_PAUSED
 
     @property
     def available(self):
         """Return true if Pulse is available and connected."""
         return self._is_connected
-
-    def update(self):
-        """Refresh state in case an alternate process modified this data."""
-        self._pa_svr.update_module_state()
-
-        current_source = None
-        for s in self._sources:
-            idx = self._pa_svr.get_module_idx(self._sink_name, s["source_name"])
-
-            if idx != -1:
-                current_source = s["name"]
-                break
-
-        self._current_source = current_source
 
     @property
     def name(self):
@@ -136,7 +123,7 @@ class PulseDevice(MediaPlayerDevice):
     @property
     def state(self):
         """Return the media state."""
-        return STATE_PLAYING
+        return self._state
 
     @property
     def is_volume_muted(self):
@@ -158,6 +145,7 @@ class PulseDevice(MediaPlayerDevice):
             | SUPPORT_VOLUME_MUTE
             | SUPPORT_VOLUME_MUTE
             | SUPPORT_SELECT_SOURCE
+            | SUPPORT_PAUSE
         )
 
     @property
@@ -169,6 +157,10 @@ class PulseDevice(MediaPlayerDevice):
     def source_list(self):
         """Return the list of available input sources."""
         return self._source_names
+
+    def select_source(self, source):
+        """Choose a different available playlist and play it."""
+        self.connect_source(source)
 
     def set_volume_level(self, volume):
         """Set volume of media player."""
@@ -209,3 +201,28 @@ class PulseDevice(MediaPlayerDevice):
     def turn_on(self):
         """Service to send the Pulse the command to start playing."""
         None
+
+    def update(self):
+        """Refresh state in case an alternate process modified this data."""
+        self._pa_svr.update_module_state()
+
+        current_source = None
+        state = STATE_PAUSED
+
+        for s in self._sources:
+            idx = self._pa_svr.get_module_idx(self._sink_name, s["source_name"])
+
+            if idx != -1:
+                current_source = s["name"]
+                state = STATE_PLAYING
+                break
+
+        self._current_source = current_source
+        self._state = state
+
+    def connect_source(self, source):
+        src = next(filter(lambda s: s["name"] == source, self._sources))["source_name"]
+
+        self._pa_svr.turn_on(self._sink_name, src)
+        # TODO: Turn off other sources!
+        self.update()
