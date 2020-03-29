@@ -45,6 +45,11 @@ class PAServer:
         self._buffer_size = int(buff_sz)
         self._tcp_timeout = int(tcp_timeout)
 
+    @property
+    def state_valid(self):
+        """Return true if module state was updated."""
+        return len(self._current_module_state) > 0
+
     def _send_command(self, cmd, response_expected):
         """Send a command to the pa server using a socket."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -97,6 +97,8 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 class PulseDevice(MediaPlayerDevice):
     """Representation of a Pulse server."""
 
+    _state_updated = False
+
     # pylint: disable=no-member
     def __init__(self, pa_server, name, sink_name, sources):
         """Initialize the Pulse device."""
@@ -106,14 +108,13 @@ class PulseDevice(MediaPlayerDevice):
         self._sources = sources
         self._source_names = [s["name"] for s in self._sources]
         self._status = None
-        self._is_connected = True
         self._current_source = None
         self._state = STATE_PAUSED
 
     @property
     def available(self):
         """Return true if Pulse is available and connected."""
-        return self._is_connected
+        return self._state_updated
 
     @property
     def name(self):
@@ -146,6 +147,7 @@ class PulseDevice(MediaPlayerDevice):
             | SUPPORT_VOLUME_MUTE
             | SUPPORT_SELECT_SOURCE
             | SUPPORT_PAUSE
+            | SUPPORT_PLAY
         )
 
     @property
@@ -191,10 +193,6 @@ class PulseDevice(MediaPlayerDevice):
         """Service to send the Pulse the command for play/pause."""
         None
 
-    def media_stop(self):
-        """Service to send the Pulse the command for stop."""
-        None
-
     def mute_volume(self, mute):
         """Mute. Emulated with set_volume_level."""
         None
@@ -211,6 +209,9 @@ class PulseDevice(MediaPlayerDevice):
         """Refresh state in case an alternate process modified this data."""
         self._pa_svr.update_module_state()
 
+        if not self._pa_svr.state_valid:
+            return
+
         current_source = None
         state = STATE_PAUSED
 
@@ -224,6 +225,7 @@ class PulseDevice(MediaPlayerDevice):
 
         self._current_source = current_source
         self._state = state
+        self._state_updated = True
 
     def connect_source(self, source):
         for s in self._sources:
