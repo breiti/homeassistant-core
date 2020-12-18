@@ -65,7 +65,7 @@ async def validate_input(hass: core.HomeAssistant, data):
         raise CannotConnect
 
     # Return info that you want to store in the config entry.
-    return {"sinks": sinks, "sources": sources}
+    return {"server": data["server"], "sinks": sinks, "sources": sources}
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -109,7 +109,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             info = await validate_input(self.hass, user_input)
-            self.server = user_input["server"]
+            self.server = info["server"]
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except Exception:  # pylint: disable=broad-except
