@@ -12,8 +12,11 @@ from .const import DOMAIN  # pylint:disable=unused-import
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO adjust the data schema to the data that you need
 STEP_USER_DATA_SCHEMA = vol.Schema({vol.Required(CONF_SERVER, default="nuc:4713"): str})
+
+
+class CannotConnect(exceptions.HomeAssistantError):
+    """Error to indicate we cannot connect."""
 
 
 def _verify_server(server: str) -> (bool, set, set):
@@ -24,25 +27,11 @@ def _verify_server(server: str) -> (bool, set, set):
         pulse = Pulse(server=server)
         if pulse.connected:
             return (True, pulse.sink_list(), pulse.source_list())
+
     except PulseError:
         None
 
     return (False, None, None)
-
-
-class PlaceholderHub:
-    """Placeholder class to make tests pass.
-
-    TODO Remove this placeholder class and replace with things from your PyPI package.
-    """
-
-    def __init__(self, host):
-        """Initialize."""
-        self.host = host
-
-    async def authenticate(self, username, password) -> bool:
-        """Test if we can authenticate with the host."""
-        return True
 
 
 async def validate_input(hass: core.HomeAssistant, data):
@@ -50,13 +39,6 @@ async def validate_input(hass: core.HomeAssistant, data):
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    # TODO validate the data can be used to set up a connection.
-
-    # If your PyPI package is not built with async, pass your methods
-    # to the executor:
-    # await hass.async_add_executor_job(
-    #     your_validate_func, data["username"], data["password"]
-    # )
     result, sinks, sources = await hass.async_add_executor_job(
         _verify_server, data["server"]
     )
@@ -64,7 +46,6 @@ async def validate_input(hass: core.HomeAssistant, data):
     if not result:
         raise CannotConnect
 
-    # Return info that you want to store in the config entry.
     return {"server": data["server"], "sinks": sinks, "sources": sources}
 
 
@@ -72,7 +53,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for PulseAudio."""
 
     VERSION = 1
-    # TODO pick one of the available connection classes in homeassistant/config_entries.py
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     @staticmethod
@@ -100,10 +80,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["base"] = "unknown"
         else:
             return self.async_create_entry(title=self.server, data=user_input)
-
-
-class CannotConnect(exceptions.HomeAssistantError):
-    """Error to indicate we cannot connect."""
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
