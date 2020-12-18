@@ -33,7 +33,7 @@ def pulseaudio_connect_fixture():
             "sinks": [PulseItemMock("sink1"), PulseItemMock("sink1")],
             "sources": [
                 PulseItemMock("source1"),
-                PulseItemMock("source1"),
+                PulseItemMock("source2"),
             ],
         },
     ), patch(
@@ -90,3 +90,18 @@ async def test_config_flow_options(hass: HomeAssistant):
     result = await hass.config_entries.options.async_init(config_entry.entry_id)
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={
+            CONF_MEDIAPLAYER_SINKS: ["sink1"],
+            CONF_MEDIAPLAYER_SOURCES: ["source2"],
+        },
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    assert config_entry.options == {
+        CONF_MEDIAPLAYER_SINKS: ["sink1"],
+        CONF_MEDIAPLAYER_SOURCES: ["source2"],
+    }
