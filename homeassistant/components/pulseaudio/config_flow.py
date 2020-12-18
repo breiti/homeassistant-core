@@ -81,23 +81,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler."""
         return OptionsFlowHandler(config_entry)
 
-    async def async_step_sinks(self, user_input=None):
-        """Handle the initial step."""
-
-        sinks = []
-        for sink in self.sinks:
-            sinks.append(sink.name)
-
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_SINKS): cv.multi_select(sinks),
-            }
-        )
-        if user_input is None:
-            return self.async_show_form(step_id=CONF_SINKS, data_schema=data_schema)
-
-        return self.async_create_entry(title=self.server, data=user_input)
-
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         if user_input is None:
