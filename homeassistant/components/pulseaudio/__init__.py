@@ -17,8 +17,6 @@ from threading import Thread
 UNDO_UPDATE_LISTENER = "undo_update_listener"
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
-# TODO List the platforms that you want to support.
-# For your initial PR, limit it to 1 platform.
 PLATFORMS = ["media_player"]
 
 
@@ -37,6 +35,10 @@ class PulseAudioInterface:
 
     def __init__(self, server: str):
         def pulse_thread(q: queue.Queue, server: str):
+            """Handle all interactions with server from a single thread.
+
+            Executes functions read from queue and regularly updates the state.
+            """
             pulse = Pulse(server=server)
             while True:
                 try:
@@ -64,7 +66,6 @@ class PulseAudioInterface:
                     self._connected = False
                     pulse.disconnect()
 
-
         self._thread = Thread(
             target=pulse_thread, name="PulseAudio_" + server, args=(self._queue, server)
         )
@@ -72,22 +73,26 @@ class PulseAudioInterface:
         self._thread.start()
 
     def stop(self):
+        """Stop the PulseAudio thread."""
         self._queue.put((None, None))
 
-    async def async_pulse_call(self, f):
+    async def _async_pulse_call(self, f):
+        """Execute function in the context of the PulseAudio thread."""
         ev = asyncio.Event()
         self._queue.put((f, ev))
         await ev.wait()
 
     async def async_sink_volume_set(self, sink, volume: float):
-        await self.async_pulse_call(
+        """Set volume for sink."""
+        await self._async_pulse_call(
             lambda pulse, sink=sink, volume=volume: pulse.sink_volume_set(
                 sink.index, PulseVolumeInfo(volume, len(sink.volume.values))
             )
         )
 
     async def async_sink_mute(self, sink, mute):
-        await self.async_pulse_call(
+        """Mute sink."""
+        await self._async_pulse_call(
             lambda pulse, index=sink.index, mute=mute: pulse.sink_mute(index, mute)
         )
 
@@ -111,7 +116,7 @@ class PulseAudioInterface:
             idx = self._get_module_idx(sink.name, s)
             if s == source_name:
                 if not idx:
-                    await self.async_pulse_call(
+                    await self._async_pulse_call(
                         lambda pulse, sink=sink.name, source=s: pulse.module_load(
                             "module-loopback", args=f"sink={sink} source={source}"
                         )
@@ -120,7 +125,7 @@ class PulseAudioInterface:
                 if not idx:
                     continue
 
-                await self.async_pulse_call(
+                await self._async_pulse_call(
                     lambda pulse, idx=idx: pulse.module_unload(idx)
                 )
 
@@ -148,7 +153,7 @@ interfaces = {}
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Set up the denonavr components from a config entry."""
+    """Set up the PulseAudio components from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
     server = entry.data[CONF_SERVER]
